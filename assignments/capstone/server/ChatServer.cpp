@@ -25,8 +25,8 @@ int main()
     }
 #endif
 
-    int listening = socket(AF_INET, SOCK_STREAM, 0);
-    if (listening < 0)
+    int listenSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (listenSocket < 0)
     {
         std::cerr << "Cannot create socket\n";
 #ifdef _WIN32
@@ -35,58 +35,56 @@ int main()
         return 1;
     }
 
-    sockaddr_in hint{};
-    hint.sin_family = AF_INET;
-    hint.sin_port = htons(54000);
-    hint.sin_addr.s_addr = INADDR_ANY;
+    sockaddr_in serverAddr{};
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(54000);
+    serverAddr.sin_addr.s_addr = INADDR_ANY;
 
-    if (bind(listening, (sockaddr *)&hint, sizeof(hint)) < 0)
+    if (bind(listenSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) < 0)
     {
         std::cerr << "Bind failed\n";
-        closesocket(listening);
+        closesocket(listenSocket);
 #ifdef _WIN32
         WSACleanup();
 #endif
         return 1;
     }
 
-    if (listen(listening, SOMAXCONN) < 0)
+    if (listen(listenSocket, SOMAXCONN) < 0)
     {
         std::cerr << "Listen failed\n";
-        closesocket(listening);
+        closesocket(listenSocket);
 #ifdef _WIN32
         WSACleanup();
 #endif
         return 1;
     }
 
-    sockaddr_in client{};
-    socklen_t clientSize = sizeof(client);
+    sockaddr_in clientAddr{};
+    socklen_t clientSize = sizeof(clientAddr);
 
-    int clientSocket = accept(listening, (sockaddr *)&client, &clientSize);
+    int clientSocket = accept(listenSocket, (sockaddr*)&clientAddr, &clientSize);
     if (clientSocket < 0)
     {
         std::cerr << "Accept failed\n";
-        closesocket(listening);
+        closesocket(listenSocket);
 #ifdef _WIN32
         WSACleanup();
 #endif
         return 1;
     }
 
-    closesocket(listening);
+    closesocket(listenSocket);
 
-    char host[NI_MAXHOST];
-    char service[NI_MAXSERV];
+    char clientIp[INET_ADDRSTRLEN];
+    std::memset(clientIp, 0, sizeof(clientIp));
 
-    std::memset(host, 0, sizeof(host));
-    std::memset(service, 0, sizeof(service));
-
-    inet_ntop(AF_INET, &client.sin_addr, host, sizeof(host));
-    std::cout << "Client connected from " << host
-              << ":" << ntohs(client.sin_port) << '\n';
+    inet_ntop(AF_INET, &clientAddr.sin_addr, clientIp, sizeof(clientIp));
+    std::cout << "Client connected from "
+              << clientIp << ":" << ntohs(clientAddr.sin_port) << '\n';
 
     char buffer[4096];
+
     while (true)
     {
         std::memset(buffer, 0, sizeof(buffer));
@@ -94,11 +92,10 @@ int main()
 
         if (bytesReceived > 0)
         {
-            std::string msg(buffer, bytesReceived);
-            std::cout << "Client: " << msg << '\n';
+            std::string message(buffer, bytesReceived);
+            std::cout << "Client: " << message << '\n';
 
-            int bytesSent = send(clientSocket, buffer, bytesReceived, 0);
-            if (bytesSent < 0)
+            if (send(clientSocket, buffer, bytesReceived, 0) < 0)
             {
                 std::cerr << "Send failed\n";
                 break;

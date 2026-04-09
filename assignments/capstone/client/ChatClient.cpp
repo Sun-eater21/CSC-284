@@ -25,8 +25,8 @@ int main()
     }
 #endif
 
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock < 0)
+    int clientSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (clientSocket < 0)
     {
         std::cerr << "Failed to create socket\n";
 #ifdef _WIN32
@@ -35,26 +35,24 @@ int main()
         return 1;
     }
 
-    sockaddr_in serverHint{};
-    serverHint.sin_family = AF_INET;
-    serverHint.sin_port = htons(54000);
+    sockaddr_in serverAddr{};
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(54000);
 
-    int ptonResult = inet_pton(AF_INET, "127.0.0.1", &serverHint.sin_addr);
-    if (ptonResult <= 0)
+    if (inet_pton(AF_INET, "127.0.0.1", &serverAddr.sin_addr) <= 0)
     {
-        std::cerr << "Invalid address or address conversion failed\n";
-        closesocket(sock);
+        std::cerr << "Invalid address\n";
+        closesocket(clientSocket);
 #ifdef _WIN32
         WSACleanup();
 #endif
         return 1;
     }
 
-    int conn = connect(sock, (sockaddr *)&serverHint, sizeof(serverHint));
-    if (conn < 0)
+    if (connect(clientSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) < 0)
     {
-        std::cerr << "Cannot connect to server\n";
-        closesocket(sock);
+        std::cerr << "Connection failed\n";
+        closesocket(clientSocket);
 #ifdef _WIN32
         WSACleanup();
 #endif
@@ -68,27 +66,24 @@ int main()
     {
         std::cout << "> ";
         if (!std::getline(std::cin, input))
-        {
-            std::cerr << "Input error\n";
             break;
-        }
 
         if (input == "quit")
             break;
 
-        int bytesSent = send(sock, input.c_str(), static_cast<int>(input.size()), 0);
-        if (bytesSent < 0)
+        if (send(clientSocket, input.c_str(), input.size(), 0) < 0)
         {
-            std::cerr << "Failed to send data to server\n";
+            std::cerr << "Send failed\n";
             break;
         }
 
         std::memset(buffer, 0, sizeof(buffer));
-        int bytesReceived = recv(sock, buffer, sizeof(buffer), 0);
+        int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
 
         if (bytesReceived > 0)
         {
-            std::cout << "Server: " << std::string(buffer, bytesReceived) << '\n';
+            std::cout << "Server: "
+                      << std::string(buffer, bytesReceived) << '\n';
         }
         else if (bytesReceived == 0)
         {
@@ -102,7 +97,7 @@ int main()
         }
     }
 
-    closesocket(sock);
+    closesocket(clientSocket);
 
 #ifdef _WIN32
     WSACleanup();
